@@ -12,18 +12,8 @@
 <body>
     <div class="container">
         <header>
-            <div class="header-top">
-                <div>
-                    <h1>⚽ LALIGA Fantasy Manager</h1>
-                    <p class="subtitle">Tu Excel vitaminado con sincronización automática en 1 clic</p>
-                </div>
-                <!-- BOTÓN DIRECTO DE 1 CLIC -->
-                <button id="btn-sync-directo" class="btn btn-sync" title="Sincronizar plantilla y presupuesto en vivo con LaLiga">
-                    <span class="sync-icon">🔄</span>
-                    <span class="sync-text">Sincronizar con LaLiga</span>
-                    <span class="spinner sync-spinner hidden"></span>
-                </button>
-            </div>
+            <h1>⚽ LALIGA Fantasy Manager</h1>
+            <p class="subtitle">Tu Excel vitaminado para dominar todas tus ligas</p>
             
             <!-- Sistema de Pestañas Principales (Tabs) -->
             <nav class="tabs-nav">
@@ -58,11 +48,8 @@
                 </div>
 
                 <div class="team-actions">
-                    <button id="btn-sync-equipo-activo" class="btn btn-sync btn-sm" title="Sincronizar este equipo con LaLiga">
-                        <span class="sync-icon">🔄</span> Sincronizar
-                    </button>
-                    <button id="btn-abrir-modal-equipo" class="btn btn-primary btn-sm">
-                        <span>➕ Nuevo / Importar</span>
+                    <button id="btn-abrir-modal-equipo" class="btn btn-primary">
+                        <span>➕ Crear Nuevo Equipo</span>
                     </button>
                     <button id="btn-eliminar-equipo" class="btn btn-secondary btn-icon-only" title="Eliminar este equipo">
                         🗑️
@@ -160,7 +147,7 @@
     </div>
 
     <!-- ==========================================
-         VENTANA MODAL: CREAR / IMPORTAR EQUIPO
+         VENTANA MODAL: CREAR NUEVO EQUIPO (100% MANUAL)
          ========================================== -->
     <div id="modal-crear-equipo" class="modal hidden">
         <div class="modal-overlay"></div>
@@ -168,108 +155,48 @@
             <button id="modal-close-btn" class="close-btn" title="Cerrar modal">&times;</button>
             
             <div class="modal-header">
-                <h2>🏆 Configurar / Sincronizar Equipo</h2>
-                <p>Configura tus credenciales una vez para sincronizar en 1 clic siempre que quieras.</p>
+                <h2>🏆 Crear Nuevo Equipo</h2>
+                <p>Introduce los datos iniciales de tu liga y añade los jugadores que te ha dado el juego.</p>
             </div>
 
-            <!-- Sub-pestañas dentro de la modal -->
-            <div class="modal-subtabs">
-                <button type="button" class="subtab-btn active" data-subtab="importar" id="btn-subtab-importar">
-                    📥 Sincronizar desde LaLiga Fantasy (Recomendado)
-                </button>
-                <button type="button" class="subtab-btn" data-subtab="manual" id="btn-subtab-manual">
-                    ✍️ Creación Manual
-                </button>
-            </div>
-
-            <!-- SUB-PESTAÑA 1: IMPORTAR DESDE LALIGA FANTASY -->
-            <div id="subtab-panel-importar" class="subtab-panel active">
-                <form id="form-importar-equipo" class="modal-form" autocomplete="off">
-                    <div class="info-box">
-                        <div class="info-title">💡 ¿Cómo obtener tus credenciales de LaLiga Fantasy?</div>
-                        <ol class="info-steps">
-                            <li>Abre <a href="https://fantasy.laliga.com" target="_blank" rel="noopener">fantasy.laliga.com</a> e inicia sesión con tu cuenta.</li>
-                            <li>Pulsa <kbd>F12</kbd> (o click derecho &rarr; <em>Inspeccionar</em>) y ve a la pestaña <strong>Red (Network)</strong>.</li>
-                            <li>Entra a tu liga y busca cualquier petición a <code>fantasy-api.llt-services.com</code>.</li>
-                            <li>En la pestaña <em>Cabeceras (Headers)</em>, copia el valor de <strong>Authorization</strong> (sin la palabra <code>Bearer</code>).</li>
-                            <li>En la URL de la petición verás: <code>.../league/<strong>[LEAGUE_ID]</strong>/user/<strong>[MANAGER_ID]</strong></code>.</li>
-                        </ol>
+            <form id="form-crear-equipo" class="modal-form" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label for="nuevo-equipo-nombre">Nombre del Equipo / Liga</label>
+                        <input type="text" id="nuevo-equipo-nombre" placeholder="Ej: Liga de Amigos, Fantasy Champions..." required>
                     </div>
 
-                    <div class="form-group">
-                        <label for="import-token">Token de Sesión (Bearer Token)</label>
-                        <input type="text" id="import-token" placeholder="Pega aquí tu Token de autorización (ej: eyJhbGciOi...)" required>
+                    <div class="form-group flex-1">
+                        <label for="nuevo-equipo-presupuesto">Presupuesto Inicial (€)</label>
+                        <input type="number" id="nuevo-equipo-presupuesto" value="20000000" step="500000" placeholder="20000000" required>
+                    </div>
+                </div>
+
+                <!-- Mini-Buscador de Jugadores Iniciales -->
+                <div class="initial-players-section">
+                    <div class="section-title-row">
+                        <label>Jugadores Iniciales (dados por el juego):</label>
+                        <span id="contador-iniciales" class="badge">0 seleccionados</span>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="import-league-id">ID de la Liga (League ID)</label>
-                            <input type="text" id="import-league-id" placeholder="Ej: 12345678" required>
-                        </div>
-
-                        <div class="form-group flex-1">
-                            <label for="import-manager-id">ID de Usuario (Manager ID)</label>
-                            <input type="text" id="import-manager-id" placeholder="Ej: 87654321" required>
-                        </div>
+                    <div class="form-group autocomplete-wrapper">
+                        <input type="text" id="buscar-jugador-inicial" placeholder="Escribe el nombre de un jugador inicial...">
+                        <div id="sugerencias-jugador-inicial" class="suggestions-dropdown hidden"></div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="import-nombre">Nombre del Equipo (Opcional)</label>
-                        <input type="text" id="import-nombre" placeholder="Déjalo vacío para usar el nombre oficial de la liga">
+                    <!-- Lista visual de jugadores iniciales seleccionados (Chips) -->
+                    <div id="lista-jugadores-iniciales" class="chips-container">
+                        <div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba para añadirlos.</div>
                     </div>
+                </div>
 
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-                        <button type="submit" id="btn-sincronizar-equipo" class="btn btn-sync">
-                            <span class="sync-icon">🔄</span>
-                            <span class="btn-text">Sincronizar y Guardar</span>
-                            <span class="spinner hidden"></span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- SUB-PESTAÑA 2: CREACIÓN MANUAL -->
-            <div id="subtab-panel-manual" class="subtab-panel">
-                <form id="form-crear-equipo" class="modal-form" autocomplete="off">
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="nuevo-equipo-nombre">Nombre del Equipo / Liga</label>
-                            <input type="text" id="nuevo-equipo-nombre" placeholder="Ej: Liga de Amigos, Fantasy Champions..." required>
-                        </div>
-
-                        <div class="form-group flex-1">
-                            <label for="nuevo-equipo-presupuesto">Presupuesto Inicial (€)</label>
-                            <input type="number" id="nuevo-equipo-presupuesto" value="20000000" step="500000" placeholder="20000000" required>
-                        </div>
-                    </div>
-
-                    <!-- Mini-Buscador de Jugadores Iniciales -->
-                    <div class="initial-players-section">
-                        <div class="section-title-row">
-                            <label>Jugadores Iniciales (dados por el juego):</label>
-                            <span id="contador-iniciales" class="badge">0 seleccionados</span>
-                        </div>
-
-                        <div class="form-group autocomplete-wrapper">
-                            <input type="text" id="buscar-jugador-inicial" placeholder="Buscar jugador para añadir a tu equipo inicial...">
-                            <div id="sugerencias-jugador-inicial" class="suggestions-dropdown hidden"></div>
-                        </div>
-
-                        <!-- Lista visual de chips -->
-                        <div id="lista-jugadores-iniciales" class="chips-container">
-                            <div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba.</div>
-                        </div>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-                        <button type="submit" id="btn-guardar-nuevo-equipo" class="btn btn-primary">
-                            <span>💾 Guardar Equipo</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
+                <div class="modal-footer">
+                    <button type="button" id="btn-cancelar-modal" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-guardar-nuevo-equipo" class="btn btn-primary">
+                        <span>💾 Crear Equipo</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

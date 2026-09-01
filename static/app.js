@@ -4,27 +4,17 @@
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
-// Botones de Sincronización Directa (1 Clic)
-const btnSyncDirecto = document.getElementById('btn-sync-directo');
-const btnSyncEquipoActivo = document.getElementById('btn-sync-equipo-activo');
-
 // Selector de Equipos
 const selectorEquipo = document.getElementById('selector-equipo');
 const btnAbrirModalEquipo = document.getElementById('btn-abrir-modal-equipo');
 const btnEliminarEquipo = document.getElementById('btn-eliminar-equipo');
 const tituloPlantillaActual = document.getElementById('titulo-plantilla-actual');
 
-// Modal Crear / Importar Equipo
+// Modal Crear Equipo
 const modalCrearEquipo = document.getElementById('modal-crear-equipo');
 const modalOverlay = modalCrearEquipo.querySelector('.modal-overlay');
 const modalCloseBtn = document.getElementById('modal-close-btn');
-const btnsModalCancel = document.querySelectorAll('.btn-modal-cancel');
-
-// Sub-pestañas Modal
-const subtabBtns = document.querySelectorAll('.subtab-btn');
-const subtabPaneles = document.querySelectorAll('.subtab-panel');
-
-// Formulario Manual
+const btnCancelarModal = document.getElementById('btn-cancelar-modal');
 const formCrearEquipo = document.getElementById('form-crear-equipo');
 const inputNuevoEquipoNombre = document.getElementById('nuevo-equipo-nombre');
 const inputNuevoEquipoPresupuesto = document.getElementById('nuevo-equipo-presupuesto');
@@ -32,14 +22,6 @@ const inputBuscarJugadorInicial = document.getElementById('buscar-jugador-inicia
 const sugerenciasJugadorInicial = document.getElementById('sugerencias-jugador-inicial');
 const listaJugadoresIniciales = document.getElementById('lista-jugadores-iniciales');
 const contadorIniciales = document.getElementById('contador-iniciales');
-
-// Formulario Importar LaLiga
-const formImportarEquipo = document.getElementById('form-importar-equipo');
-const inputImportToken = document.getElementById('import-token');
-const inputImportLeagueId = document.getElementById('import-league-id');
-const inputImportManagerId = document.getElementById('import-manager-id');
-const inputImportNombre = document.getElementById('import-nombre');
-const btnSincronizarEquipo = document.getElementById('btn-sincronizar-equipo');
 
 // Elementos de Mercado
 const buscadorMercado = document.getElementById('buscador');
@@ -92,12 +74,11 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFormFichar();
     inicializarModalCrearEquipo();
     inicializarSelectorEquipos();
-    inicializarSyncDirecto();
     cargarListaEquipos();
 });
 
 // ==========================================
-// SISTEMA DE PESTAÑAS (TABS PRINCIPALES)
+// SISTEMA DE PESTAÑAS (TABS)
 // ==========================================
 function inicializarTabs() {
     tabBtns.forEach(btn => {
@@ -159,63 +140,6 @@ function mostrarToast(mensaje, tipo = 'info') {
     setTimeout(() => {
         toast.classList.add('hidden');
     }, 3500);
-}
-
-// ==========================================
-// SINCRONIZACIÓN EN 1 CLIC (BOTÓN DIRECTO)
-// ==========================================
-function inicializarSyncDirecto() {
-    const triggers = [btnSyncDirecto, btnSyncEquipoActivo];
-    triggers.forEach(btn => {
-        if (!btn) return;
-        btn.addEventListener('click', () => {
-            ejecutarSincronizacionDirecta(btn);
-        });
-    });
-}
-
-async function ejecutarSincronizacionDirecta(botonActivador) {
-    const icono = botonActivador.querySelector('.sync-icon');
-    if (icono) icono.classList.add('rotating');
-    botonActivador.disabled = true;
-
-    try {
-        // Verificar primero si tenemos credenciales
-        const resConfig = await fetch('/api/config');
-        const configData = await resConfig.json();
-
-        // Si no hay credenciales guardadas y no hay equipo seleccionado, abrir modal
-        if (!configData.tiene_credenciales && (!equipoActivoData || !equipoActivoData.es_sincronizable)) {
-            mostrarToast("Introduce tus credenciales de LaLiga una sola vez para sincronizar en 1 clic", "info");
-            abrirModalCrearEquipo();
-            return;
-        }
-
-        mostrarToast("Sincronizando plantilla en tiempo real...", "info");
-
-        const url = equipoActivoId ? `/api/sincronizar?equipo_id=${encodeURIComponent(equipoActivoId)}` : '/api/sincronizar';
-        const res = await fetch(url, { method: 'POST' });
-        const data = await res.json();
-
-        if (res.ok) {
-            mostrarToast(data.mensaje || "¡Plantilla sincronizada con éxito!");
-            await cargarListaEquipos(data.equipo.id);
-            // Cambiar a la pestaña de plantilla automáticamente
-            const tabPlantillaBtn = document.getElementById('tab-btn-plantilla');
-            if (tabPlantillaBtn) tabPlantillaBtn.click();
-        } else {
-            mostrarToast(data.detail || "Error al sincronizar", "error");
-            if (data.detail && data.detail.includes("credenciales")) {
-                abrirModalCrearEquipo();
-            }
-        }
-    } catch (err) {
-        console.error(err);
-        mostrarToast("Error de conexión al sincronizar", "error");
-    } finally {
-        if (icono) icono.classList.remove('rotating');
-        botonActivador.disabled = false;
-    }
 }
 
 // ==========================================
@@ -323,7 +247,7 @@ function limpiarDashboardPlantilla() {
     tablaPlantillaBody.innerHTML = `
         <tr>
             <td colspan="7" class="text-center text-muted py-4">
-                No tienes equipos creados. Haz clic en "Sincronizar con LaLiga" o "Crear / Importar".
+                No tienes equipos creados. Haz clic en "Crear Nuevo Equipo".
             </td>
         </tr>
     `;
@@ -370,7 +294,7 @@ function renderizarPlantilla(equipo) {
         tablaPlantillaBody.innerHTML = `
             <tr>
                 <td colspan="7" class="text-center text-muted py-4">
-                    Tu plantilla está vacía. Pulsa "Sincronizar" o ficha jugadores con el formulario superior.
+                    Tu plantilla está vacía. Ficha jugadores usando el formulario superior o desde el Mercado.
                 </td>
             </tr>
         `;
@@ -403,16 +327,13 @@ function renderizarPlantilla(equipo) {
 }
 
 // ==========================================
-// VENTANA MODAL: CREAR / IMPORTAR EQUIPO
+// VENTANA MODAL: CREAR NUEVO EQUIPO
 // ==========================================
 function inicializarModalCrearEquipo() {
     btnAbrirModalEquipo.addEventListener('click', abrirModalCrearEquipo);
     modalCloseBtn.addEventListener('click', cerrarModalCrearEquipo);
+    btnCancelarModal.addEventListener('click', cerrarModalCrearEquipo);
     modalOverlay.addEventListener('click', cerrarModalCrearEquipo);
-
-    btnsModalCancel.forEach(btn => {
-        btn.addEventListener('click', cerrarModalCrearEquipo);
-    });
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !modalCrearEquipo.classList.contains('hidden')) {
@@ -420,22 +341,7 @@ function inicializarModalCrearEquipo() {
         }
     });
 
-    // Sub-pestañas Modal
-    subtabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetSubtab = btn.getAttribute('data-subtab');
-            subtabBtns.forEach(b => b.classList.remove('active'));
-            subtabPaneles.forEach(p => p.classList.remove('active'));
-
-            btn.classList.add('active');
-            const targetPanel = document.getElementById(`subtab-panel-${targetSubtab}`);
-            if (targetPanel) {
-                targetPanel.classList.add('active');
-            }
-        });
-    });
-
-    // Mini-buscador de jugadores iniciales (Manual)
+    // Mini-buscador de jugadores iniciales
     inputBuscarJugadorInicial.addEventListener('input', (e) => {
         clearTimeout(modalAutocompleteTimeout);
         const query = e.target.value.trim();
@@ -463,7 +369,7 @@ function inicializarModalCrearEquipo() {
         }
     });
 
-    // Formulario 1: Envío Creación Manual
+    // Envío del formulario de creación
     formCrearEquipo.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -501,63 +407,6 @@ function inicializarModalCrearEquipo() {
             mostrarToast("Error en la solicitud", "error");
         }
     });
-
-    // Formulario 2: Envío Importación LaLiga Fantasy
-    formImportarEquipo.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const token = inputImportToken.value.trim();
-        const leagueId = inputImportLeagueId.value.trim();
-        const managerId = inputImportManagerId.value.trim();
-        const nombre = inputImportNombre.value.trim() || null;
-
-        if (!token || !leagueId || !managerId) {
-            mostrarToast("Debes introducir Token, League ID y Manager ID", "error");
-            return;
-        }
-
-        // Estado de carga UI
-        const btnText = btnSincronizarEquipo.querySelector('.btn-text');
-        const spinner = btnSincronizarEquipo.querySelector('.spinner');
-        const icon = btnSincronizarEquipo.querySelector('.sync-icon');
-        
-        btnSincronizarEquipo.disabled = true;
-        btnText.textContent = "Sincronizando con LaLiga...";
-        if (icon) icon.classList.add('rotating');
-        if (spinner) spinner.classList.remove('hidden');
-
-        try {
-            const res = await fetch('/api/equipos/importar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    token: token,
-                    league_id: leagueId,
-                    manager_id: managerId,
-                    nombre: nombre
-                })
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                mostrarToast(data.mensaje || "¡Plantilla sincronizada con éxito!");
-                cerrarModalCrearEquipo();
-                formImportarEquipo.reset();
-                await cargarListaEquipos(data.equipo.id);
-            } else {
-                mostrarToast(data.detail || "Error al sincronizar con LaLiga Fantasy", "error");
-            }
-        } catch (err) {
-            console.error(err);
-            mostrarToast("Error de conexión al servidor", "error");
-        } finally {
-            btnSincronizarEquipo.disabled = false;
-            btnText.textContent = "Sincronizar y Guardar";
-            if (icon) icon.classList.remove('rotating');
-            if (spinner) spinner.classList.add('hidden');
-        }
-    });
 }
 
 function abrirModalCrearEquipo() {
@@ -567,9 +416,8 @@ function abrirModalCrearEquipo() {
     renderizarChipsIniciales();
     sugerenciasJugadorInicial.innerHTML = '';
     sugerenciasJugadorInicial.classList.add('hidden');
-
     modalCrearEquipo.classList.remove('hidden');
-    inputImportToken.focus();
+    inputNuevoEquipoNombre.focus();
 }
 
 function cerrarModalCrearEquipo() {
@@ -605,6 +453,7 @@ function mostrarSugerenciasIniciales(jugadores) {
 
         if (!yaAgregado) {
             item.addEventListener('click', () => {
+                // Al ser jugador inicial dado por el juego por defecto, precio compra es 0 €
                 jugadoresInicialesTemp.push({
                     id: id,
                     nombre: nombre,
@@ -629,7 +478,7 @@ function renderizarChipsIniciales() {
     contadorIniciales.textContent = `${jugadoresInicialesTemp.length} seleccionados`;
 
     if (jugadoresInicialesTemp.length === 0) {
-        listaJugadoresIniciales.innerHTML = '<div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba.</div>';
+        listaJugadoresIniciales.innerHTML = '<div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba para añadirlos.</div>';
         return;
     }
 
@@ -905,7 +754,7 @@ function mostrarResultadosMercado(jugadores) {
 function ficharDirectoDesdeMercado(id, nombre, precio) {
     if (!equipoActivoId && equiposList.length === 0) {
         abrirModalCrearEquipo();
-        mostrarToast("Crea o importa primero un equipo para fichar", "error");
+        mostrarToast("Crea primero un equipo para fichar", "error");
         return;
     }
 
