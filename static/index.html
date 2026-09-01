@@ -5,20 +5,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LALIGA Fantasy Manager</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>⚽ LALIGA Fantasy Manager</h1>
-            <p>Tu Excel vitaminado</p>
+            <p class="subtitle">Tu Excel vitaminado para dominar la liga</p>
+            
+            <!-- Sistema de Pestañas (Tabs) -->
+            <nav class="tabs-nav">
+                <button class="tab-btn active" data-tab="mercado" id="tab-btn-mercado">
+                    <span class="tab-icon">🔍</span> Mercado
+                </button>
+                <button class="tab-btn" data-tab="plantilla" id="tab-btn-plantilla">
+                    <span class="tab-icon">📋</span> Mi Plantilla
+                </button>
+            </nav>
         </header>
 
-        <div class="search-box">
-            <input type="text" id="buscador" placeholder="Busca un jugador (ej: Hugo Duro)..." autocomplete="off">
-        </div>
+        <!-- SECCIÓN 1: MERCADO (BUSCADOR) -->
+        <section id="tab-mercado" class="tab-content active">
+            <div class="search-box">
+                <input type="text" id="buscador" placeholder="Busca un jugador en el mercado (ej: Hugo Duro, Bellingham, Nico Williams)..." autocomplete="off">
+            </div>
+            <div id="resultados" class="grid"></div>
+        </section>
 
-        <div id="resultados" class="grid"></div>
+        <!-- SECCIÓN 2: MI PLANTILLA -->
+        <section id="tab-plantilla" class="tab-content">
+            <!-- Métricas y Presupuesto -->
+            <div class="dashboard-grid">
+                <div class="metric-card budget-card">
+                    <div class="metric-header">
+                        <span class="metric-title">💰 Presupuesto Disponible</span>
+                        <button id="btn-editar-presupuesto" class="btn-icon" title="Editar presupuesto">✏️</button>
+                    </div>
+                    <div class="metric-body">
+                        <div id="display-presupuesto" class="metric-value text-green">0 M €</div>
+                        <div id="form-presupuesto" class="budget-edit-form hidden">
+                            <input type="number" id="input-presupuesto" step="100000" placeholder="Ej: 45000000">
+                            <button id="btn-guardar-presupuesto" class="btn-sm btn-primary">Guardar</button>
+                            <button id="btn-cancelar-presupuesto" class="btn-sm btn-secondary">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <span class="metric-title">👥 Valor de Plantilla</span>
+                    <div id="display-valor-plantilla" class="metric-value">0 M €</div>
+                    <span id="display-num-jugadores" class="metric-sub">0 jugadores</span>
+                </div>
+
+                <div class="metric-card">
+                    <span class="metric-title">📈 Beneficio / Pérdida</span>
+                    <div id="display-beneficio-total" class="metric-value">0 €</div>
+                    <span id="display-rentabilidad-total" class="metric-sub">0.0% rentabilidad</span>
+                </div>
+
+                <div class="metric-card">
+                    <span class="metric-title">🏦 Patrimonio Total</span>
+                    <div id="display-patrimonio-total" class="metric-value">0 M €</div>
+                    <span class="metric-sub">Presupuesto + Plantilla</span>
+                </div>
+            </div>
+
+            <!-- Formulario Rápido para Añadir Jugador -->
+            <div class="card add-player-card">
+                <h3>➕ Fichar Jugador para Mi Plantilla</h3>
+                <form id="form-fichar" class="add-player-form" autocomplete="off">
+                    <input type="hidden" id="fichar-id">
+                    
+                    <div class="form-group autocomplete-wrapper">
+                        <label for="fichar-nombre">Jugador</label>
+                        <input type="text" id="fichar-nombre" placeholder="Escribe para buscar..." required>
+                        <div id="fichar-sugerencias" class="suggestions-dropdown hidden"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fichar-precio">Precio de Compra (€)</label>
+                        <input type="number" id="fichar-precio" placeholder="Ej: 5200000" step="10000" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-add">
+                        <span>Añadir a Plantilla</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Tabla de Plantilla -->
+            <div class="table-container">
+                <div class="table-header-bar">
+                    <h3>Plantilla Actual</h3>
+                    <span id="contador-plantilla" class="badge">0 Jugadores</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th>Jugador</th>
+                                <th>Equipo</th>
+                                <th class="text-right">Precio Compra</th>
+                                <th class="text-right">Valor Actual</th>
+                                <th class="text-right">Beneficio / Pérdida</th>
+                                <th class="text-center">Puntos</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-plantilla-body">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No tienes jugadores en tu plantilla aún. Añade uno arriba.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
     </div>
+
+    <!-- Notificaciones Toast -->
+    <div id="toast" class="toast hidden"></div>
 
     <script src="/static/app.js"></script>
 </body>
