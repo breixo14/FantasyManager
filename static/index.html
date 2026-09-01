@@ -12,8 +12,18 @@
 <body>
     <div class="container">
         <header>
-            <h1>⚽ LALIGA Fantasy Manager</h1>
-            <p class="subtitle">Gestiona múltiples ligas con tu Excel vitaminado</p>
+            <div class="header-top">
+                <div>
+                    <h1>⚽ LALIGA Fantasy Manager</h1>
+                    <p class="subtitle">Tu Excel vitaminado con sincronización automática en 1 clic</p>
+                </div>
+                <!-- BOTÓN DIRECTO DE 1 CLIC -->
+                <button id="btn-sync-directo" class="btn btn-sync" title="Sincronizar plantilla y presupuesto en vivo con LaLiga">
+                    <span class="sync-icon">🔄</span>
+                    <span class="sync-text">Sincronizar con LaLiga</span>
+                    <span class="spinner sync-spinner hidden"></span>
+                </button>
+            </div>
             
             <!-- Sistema de Pestañas Principales (Tabs) -->
             <nav class="tabs-nav">
@@ -48,8 +58,11 @@
                 </div>
 
                 <div class="team-actions">
-                    <button id="btn-abrir-modal-equipo" class="btn btn-primary">
-                        <span>➕ Crear / Importar Equipo</span>
+                    <button id="btn-sync-equipo-activo" class="btn btn-sync btn-sm" title="Sincronizar este equipo con LaLiga">
+                        <span class="sync-icon">🔄</span> Sincronizar
+                    </button>
+                    <button id="btn-abrir-modal-equipo" class="btn btn-primary btn-sm">
+                        <span>➕ Nuevo / Importar</span>
                     </button>
                     <button id="btn-eliminar-equipo" class="btn btn-secondary btn-icon-only" title="Eliminar este equipo">
                         🗑️
@@ -155,66 +168,23 @@
             <button id="modal-close-btn" class="close-btn" title="Cerrar modal">&times;</button>
             
             <div class="modal-header">
-                <h2>🏆 Nuevo Equipo</h2>
-                <p>Crea un equipo manualmente o impórtalo al instante desde tu cuenta oficial de LaLiga Fantasy.</p>
+                <h2>🏆 Configurar / Sincronizar Equipo</h2>
+                <p>Configura tus credenciales una vez para sincronizar en 1 clic siempre que quieras.</p>
             </div>
 
             <!-- Sub-pestañas dentro de la modal -->
             <div class="modal-subtabs">
-                <button type="button" class="subtab-btn active" data-subtab="manual" id="btn-subtab-manual">
+                <button type="button" class="subtab-btn active" data-subtab="importar" id="btn-subtab-importar">
+                    📥 Sincronizar desde LaLiga Fantasy (Recomendado)
+                </button>
+                <button type="button" class="subtab-btn" data-subtab="manual" id="btn-subtab-manual">
                     ✍️ Creación Manual
                 </button>
-                <button type="button" class="subtab-btn" data-subtab="importar" id="btn-subtab-importar">
-                    📥 Sincronizar desde LaLiga Fantasy
-                </button>
             </div>
 
-            <!-- SUB-PESTAÑA 1: CREACIÓN MANUAL -->
-            <div id="subtab-panel-manual" class="subtab-panel active">
-                <form id="form-crear-equipo" class="modal-form" autocomplete="off">
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="nuevo-equipo-nombre">Nombre del Equipo / Liga</label>
-                            <input type="text" id="nuevo-equipo-nombre" placeholder="Ej: Liga de Amigos, Fantasy Champions..." required>
-                        </div>
-
-                        <div class="form-group flex-1">
-                            <label for="nuevo-equipo-presupuesto">Presupuesto Inicial (€)</label>
-                            <input type="number" id="nuevo-equipo-presupuesto" value="20000000" step="500000" placeholder="20000000" required>
-                        </div>
-                    </div>
-
-                    <!-- Mini-Buscador de Jugadores Iniciales -->
-                    <div class="initial-players-section">
-                        <div class="section-title-row">
-                            <label>Jugadores Iniciales (dados por el juego):</label>
-                            <span id="contador-iniciales" class="badge">0 seleccionados</span>
-                        </div>
-
-                        <div class="form-group autocomplete-wrapper">
-                            <input type="text" id="buscar-jugador-inicial" placeholder="Buscar jugador para añadir a tu equipo inicial...">
-                            <div id="sugerencias-jugador-inicial" class="suggestions-dropdown hidden"></div>
-                        </div>
-
-                        <!-- Lista visual de chips -->
-                        <div id="lista-jugadores-iniciales" class="chips-container">
-                            <div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba.</div>
-                        </div>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-                        <button type="submit" id="btn-guardar-nuevo-equipo" class="btn btn-primary">
-                            <span>💾 Guardar Equipo</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- SUB-PESTAÑA 2: IMPORTAR DESDE LALIGA FANTASY -->
-            <div id="subtab-panel-importar" class="subtab-panel">
+            <!-- SUB-PESTAÑA 1: IMPORTAR DESDE LALIGA FANTASY -->
+            <div id="subtab-panel-importar" class="subtab-panel active">
                 <form id="form-importar-equipo" class="modal-form" autocomplete="off">
-                    <!-- Guía de ayuda rápida -->
                     <div class="info-box">
                         <div class="info-title">💡 ¿Cómo obtener tus credenciales de LaLiga Fantasy?</div>
                         <ol class="info-steps">
@@ -250,9 +220,52 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-                        <button type="submit" id="btn-sincronizar-equipo" class="btn btn-primary">
-                            <span class="btn-text">🚀 Sincronizar y Crear Equipo</span>
+                        <button type="submit" id="btn-sincronizar-equipo" class="btn btn-sync">
+                            <span class="sync-icon">🔄</span>
+                            <span class="btn-text">Sincronizar y Guardar</span>
                             <span class="spinner hidden"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- SUB-PESTAÑA 2: CREACIÓN MANUAL -->
+            <div id="subtab-panel-manual" class="subtab-panel">
+                <form id="form-crear-equipo" class="modal-form" autocomplete="off">
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label for="nuevo-equipo-nombre">Nombre del Equipo / Liga</label>
+                            <input type="text" id="nuevo-equipo-nombre" placeholder="Ej: Liga de Amigos, Fantasy Champions..." required>
+                        </div>
+
+                        <div class="form-group flex-1">
+                            <label for="nuevo-equipo-presupuesto">Presupuesto Inicial (€)</label>
+                            <input type="number" id="nuevo-equipo-presupuesto" value="20000000" step="500000" placeholder="20000000" required>
+                        </div>
+                    </div>
+
+                    <!-- Mini-Buscador de Jugadores Iniciales -->
+                    <div class="initial-players-section">
+                        <div class="section-title-row">
+                            <label>Jugadores Iniciales (dados por el juego):</label>
+                            <span id="contador-iniciales" class="badge">0 seleccionados</span>
+                        </div>
+
+                        <div class="form-group autocomplete-wrapper">
+                            <input type="text" id="buscar-jugador-inicial" placeholder="Buscar jugador para añadir a tu equipo inicial...">
+                            <div id="sugerencias-jugador-inicial" class="suggestions-dropdown hidden"></div>
+                        </div>
+
+                        <!-- Lista visual de chips -->
+                        <div id="lista-jugadores-iniciales" class="chips-container">
+                            <div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba.</div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+                        <button type="submit" id="btn-guardar-nuevo-equipo" class="btn btn-primary">
+                            <span>💾 Guardar Equipo</span>
                         </button>
                     </div>
                 </form>
