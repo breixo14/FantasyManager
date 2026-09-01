@@ -27,6 +27,64 @@ HEADERS = {
 if TOKEN:
     HEADERS["Authorization"] = f"Bearer {TOKEN}"
 
+# Diccionario oficial de mapeo de IDs de equipos de LaLiga
+EQUIPOS_MAP = {
+    # LALIGA EA SPORTS (Primera División)
+    "2": "Atlético de Madrid",
+    "3": "Athletic Club",
+    "4": "FC Barcelona",
+    "5": "Real Betis",
+    "6": "RC Celta",
+    "7": "Elche CF",
+    "8": "RCD Espanyol",
+    "9": "Getafe CF",
+    "11": "Levante UD",
+    "12": "Málaga CF",
+    "13": "CA Osasuna",
+    "14": "Rayo Vallecano",
+    "15": "Real Madrid",
+    "16": "Real Sociedad",
+    "17": "Sevilla FC",
+    "18": "Valencia CF",
+    "20": "Villarreal CF",
+    "21": "Deportivo Alavés",
+    "26": "RC Deportivo",
+    "49": "Racing de Santander",
+
+    # LALIGA HYPERMOTION (Segunda División)
+    "1": "UD Almería",
+    "10": "Granada CF",
+    "19": "Real Valladolid",
+    "25": "Córdoba CF",
+    "27": "SD Eibar",
+    "28": "Girona FC",
+    "31": "UD Las Palmas",
+    "33": "RCD Mallorca",
+    "38": "CD Castellón",
+    "39": "Real Sporting",
+    "40": "CD Tenerife",
+    "47": "SD Huesca",
+    "53": "Burgos CF",
+    "54": "Real Zaragoza",
+    "157": "Real Oviedo",
+    "158": "CD Mirandés",
+    "162": "Cádiz CF",
+    "481": "CD Eldense",
+    "482": "Albacete Balompié",
+    "833": "FC Cartagena",
+    "851": "Racing de Ferrol",
+    "962": "CD Leganés",
+}
+
+# Diccionario de posiciones
+POSICIONES_MAP = {
+    "1": "POR",
+    "2": "DEF",
+    "3": "MED",
+    "4": "DEL",
+    "5": "ENT"
+}
+
 # Cache en memoria de jugadores
 jugadores_cache = []
 
@@ -35,10 +93,29 @@ def normalizar_texto(texto):
         return ""
     return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('utf-8').lower().strip()
 
+def formatear_jugador_raw(p):
+    """Añade nombre del equipo, posición y valor de mercado al diccionario del jugador."""
+    team_id = str(p.get("teamId") or "")
+    pos_id = str(p.get("positionId") or "")
+
+    team_name = p.get("teamName") or EQUIPOS_MAP.get(team_id, "Sin Equipo")
+    position_name = p.get("position") or POSICIONES_MAP.get(pos_id, "")
+
+    try:
+        market_val = float(p.get("marketValue") or 0)
+    except (ValueError, TypeError):
+        market_val = 0.0
+
+    return {
+        **p,
+        "teamName": team_name,
+        "position": position_name,
+        "marketValue": market_val
+    }
+
 def cargar_equipos():
     """Lee equipos.json o migra desde mi_equipo.json / inicializa estructura."""
     if not DATA_FILE.exists():
-        # Migración si existía el formato anterior
         if OLD_DATA_FILE.exists():
             try:
                 with open(OLD_DATA_FILE, "r", encoding="utf-8") as f_old:
@@ -78,15 +155,24 @@ def guardar_equipos(datos):
         json.dump(datos, f, indent=2, ensure_ascii=False)
 
 def descargar_jugadores():
-    """Descarga el catálogo de jugadores de la API de LaLiga."""
+    """Descarga el catálogo de jugadores de LaLiga EA Sports y Hypermotion."""
     global jugadores_cache
-    try:
-        response = requests.get(f"{BASE_URL}/v1/competition/1/players", headers=HEADERS)
-        if response.status_code == 200:
-            jugadores_cache = response.json()
-            print(f"Caché cargada: {len(jugadores_cache)} jugadores.")
-    except Exception as e:
-        print("Error descargando jugadores:", e)
+    todos_los_jugadores = []
+
+    # Descargamos Primera y Segunda División
+    for comp_id in [1, 2]:
+        try:
+            response = requests.get(f"{BASE_URL}/v1/competition/{comp_id}/players", headers=HEADERS, timeout=10)
+            if response.status_code == 200:
+                raw_list = response.json()
+                for p in raw_list:
+                    todos_los_jugadores.append(formatear_jugador_raw(p))
+        except Exception as e:
+            print(f"Error descargando jugadores de competición {comp_id}:", e)
+
+    if todos_los_jugadores:
+        jugadores_cache = todos_los_jugadores
+        print(f"Caché cargada: {len(jugadores_cache)} jugadores con equipo y posición vinculados.")
 
 def enriquecer_jugador(j_guardado, mapa_id, mapa_nombre):
     """Cruza un jugador guardado con la información actual del mercado."""
@@ -99,14 +185,18 @@ def enriquecer_jugador(j_guardado, mapa_id, mapa_nombre):
     if valor_actual is None:
         valor_actual = j_guardado.get("precio_compra", 0)
 
+    team_id = str(info_mercado.get("teamId") or "")
+    equipo = info_mercado.get("teamName") or EQUIPOS_MAP.get(team_id, "Sin Equipo")
+    posicion = info_mercado.get("position") or POSICIONES_MAP.get(str(info_mercado.get("positionId") or ""), "")
+
     return {
         "id": j_guardado.get("id"),
         "nombre": j_guardado.get("nombre"),
         "precio_compra": float(j_guardado.get("precio_compra", 0)),
         "valor_actual": float(valor_actual),
-        "equipo": info_mercado.get("teamName") or "Sin Equipo",
+        "equipo": equipo,
         "puntos": info_mercado.get("points", 0),
-        "posicion": info_mercado.get("position", ""),
+        "posicion": posicion,
         "image": info_mercado.get("image", "")
     }
 
@@ -181,7 +271,6 @@ def crear_equipo(body: CrearEquipoRequest):
     datos = cargar_equipos()
     nuevo_id = uuid.uuid4().hex[:8]
 
-    # Procesar jugadores iniciales asegurando formato limpio
     jugadores_limpios = []
     for j in body.jugadores:
         jugadores_limpios.append({
@@ -210,7 +299,6 @@ def obtener_equipo(equipo_id: str):
     if not equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-    # Mapeo rápido para enriquecer datos con mercado
     mapa_id = {str(j.get('id')): j for j in jugadores_cache}
     mapa_nombre = {normalizar_texto(j.get('nickname') or j.get('name')): j for j in jugadores_cache}
 

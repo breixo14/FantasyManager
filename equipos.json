@@ -5,6 +5,28 @@
       "nombre": "Mi Primer Equipo",
       "presupuesto": 50000000,
       "jugadores": []
+    },
+    {
+      "id": "954c2a8b",
+      "nombre": "Casa Paco",
+      "presupuesto": 100000000.0,
+      "jugadores": [
+        {
+          "id": "1191",
+          "nombre": "Hugo Duro",
+          "precio_compra": 0.0
+        },
+        {
+          "id": "2534",
+          "nombre": "Álex Baena",
+          "precio_compra": 0.0
+        },
+        {
+          "id": "2326",
+          "nombre": "Koke",
+          "precio_compra": 0.0
+        }
+      ]
     }
   ]
 }
