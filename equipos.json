@@ -1,0 +1,10 @@
+{
+  "equipos": [
+    {
+      "id": "equipo-principal",
+      "nombre": "Mi Primer Equipo",
+      "presupuesto": 50000000,
+      "jugadores": []
+    }
+  ]
+}

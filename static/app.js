@@ -1,8 +1,27 @@
 // ==========================================
-// VARIABLES DE ESTADO Y ELEMENTOS DOM
+// ESTADO GLOBAL Y ELEMENTOS DOM
 // ==========================================
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
+
+// Selector de Equipos
+const selectorEquipo = document.getElementById('selector-equipo');
+const btnAbrirModalEquipo = document.getElementById('btn-abrir-modal-equipo');
+const btnEliminarEquipo = document.getElementById('btn-eliminar-equipo');
+const tituloPlantillaActual = document.getElementById('titulo-plantilla-actual');
+
+// Modal Crear Equipo
+const modalCrearEquipo = document.getElementById('modal-crear-equipo');
+const modalOverlay = modalCrearEquipo.querySelector('.modal-overlay');
+const modalCloseBtn = document.getElementById('modal-close-btn');
+const btnCancelarModal = document.getElementById('btn-cancelar-modal');
+const formCrearEquipo = document.getElementById('form-crear-equipo');
+const inputNuevoEquipoNombre = document.getElementById('nuevo-equipo-nombre');
+const inputNuevoEquipoPresupuesto = document.getElementById('nuevo-equipo-presupuesto');
+const inputBuscarJugadorInicial = document.getElementById('buscar-jugador-inicial');
+const sugerenciasJugadorInicial = document.getElementById('sugerencias-jugador-inicial');
+const listaJugadoresIniciales = document.getElementById('lista-jugadores-iniciales');
+const contadorIniciales = document.getElementById('contador-iniciales');
 
 // Elementos de Mercado
 const buscadorMercado = document.getElementById('buscador');
@@ -25,7 +44,7 @@ const displayPatrimonioTotal = document.getElementById('display-patrimonio-total
 const contadorPlantilla = document.getElementById('contador-plantilla');
 const tablaPlantillaBody = document.getElementById('tabla-plantilla-body');
 
-// Formulario Fichar
+// Formulario Fichar Plantilla
 const formFichar = document.getElementById('form-fichar');
 const inputFicharNombre = document.getElementById('fichar-nombre');
 const inputFicharId = document.getElementById('fichar-id');
@@ -35,13 +54,15 @@ const dropdownSugerencias = document.getElementById('fichar-sugerencias');
 // Toast
 const toast = document.getElementById('toast');
 
-let equipoData = {
-    presupuesto: 0,
-    jugadores: []
-};
+// Variables de estado
+let equiposList = [];
+let equipoActivoId = null;
+let equipoActivoData = null;
+let jugadoresInicialesTemp = [];
 
 let searchTimeout;
 let autocompleteTimeout;
+let modalAutocompleteTimeout;
 
 // ==========================================
 // INICIALIZACIÓN
@@ -51,7 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarBuscadorMercado();
     inicializarPresupuesto();
     inicializarFormFichar();
-    cargarEquipo();
+    inicializarModalCrearEquipo();
+    inicializarSelectorEquipos();
+    cargarListaEquipos();
 });
 
 // ==========================================
@@ -71,15 +94,15 @@ function inicializarTabs() {
                 targetContent.classList.add('active');
             }
 
-            if (targetTab === 'plantilla') {
-                cargarEquipo();
+            if (targetTab === 'plantilla' && equipoActivoId) {
+                cargarDatosEquipo(equipoActivoId);
             }
         });
     });
 }
 
 // ==========================================
-// FORMATEO DE VALORES
+// FORMATEO DE VALORES Y UTILS
 // ==========================================
 function formatearDinero(valor) {
     if (valor === undefined || valor === null || isNaN(valor)) return "0 €";
@@ -120,23 +143,121 @@ function mostrarToast(mensaje, tipo = 'info') {
 }
 
 // ==========================================
-// GESTIÓN DE EQUIPO Y PLANTILLA (API)
+// GESTIÓN DE EQUIPOS (MULTI-EQUIPO)
 // ==========================================
-async function cargarEquipo() {
+function inicializarSelectorEquipos() {
+    selectorEquipo.addEventListener('change', (e) => {
+        const idSeleccionado = e.target.value;
+        if (idSeleccionado) {
+            equipoActivoId = idSeleccionado;
+            localStorage.setItem('fantasy_equipo_activo', idSeleccionado);
+            cargarDatosEquipo(idSeleccionado);
+        }
+    });
+
+    btnEliminarEquipo.addEventListener('click', async () => {
+        if (!equipoActivoId) return;
+        const nombreEquipo = equipoActivoData ? equipoActivoData.nombre : "este equipo";
+        
+        if (!confirm(`¿Estás seguro de que quieres eliminar el equipo "${nombreEquipo}"? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/equipos/${encodeURIComponent(equipoActivoId)}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                mostrarToast(`Equipo "${nombreEquipo}" eliminado`);
+                localStorage.removeItem('fantasy_equipo_activo');
+                equipoActivoId = null;
+                cargarListaEquipos();
+            } else {
+                mostrarToast("No se pudo eliminar el equipo", "error");
+            }
+        } catch (err) {
+            console.error(err);
+            mostrarToast("Error de conexión", "error");
+        }
+    });
+}
+
+async function cargarListaEquipos(seleccionarId = null) {
     try {
-        const res = await fetch('/api/equipo');
-        if (!res.ok) throw new Error("Error al obtener equipo");
-        equipoData = await res.json();
-        renderizarPlantilla();
+        const res = await fetch('/api/equipos');
+        const data = await res.json();
+        equiposList = data.equipos || [];
+
+        selectorEquipo.innerHTML = '';
+
+        if (equiposList.length === 0) {
+            selectorEquipo.innerHTML = '<option value="" disabled selected>No tienes equipos creados</option>';
+            limpiarDashboardPlantilla();
+            abrirModalCrearEquipo();
+            return;
+        }
+
+        equiposList.forEach(eq => {
+            const opt = document.createElement('option');
+            opt.value = eq.id;
+            opt.textContent = `${eq.nombre} (${eq.num_jugadores} jug. | ${formatearDinero(eq.presupuesto)})`;
+            selectorEquipo.appendChild(opt);
+        });
+
+        // Determinar qué equipo seleccionar
+        const guardado = localStorage.getItem('fantasy_equipo_activo');
+        let idParaSeleccionar = seleccionarId || (equiposList.some(e => e.id === guardado) ? guardado : equiposList[0].id);
+
+        selectorEquipo.value = idParaSeleccionar;
+        equipoActivoId = idParaSeleccionar;
+        localStorage.setItem('fantasy_equipo_activo', idParaSeleccionar);
+
+        cargarDatosEquipo(idParaSeleccionar);
     } catch (err) {
         console.error(err);
-        mostrarToast("No se pudo cargar la plantilla", "error");
+        mostrarToast("Error al cargar listado de equipos", "error");
     }
 }
 
-function renderizarPlantilla() {
-    const presupuesto = equipoData.presupuesto || 0;
-    const jugadores = equipoData.jugadores || [];
+async function cargarDatosEquipo(equipoId) {
+    if (!equipoId) return;
+
+    try {
+        const res = await fetch(`/api/equipos/${encodeURIComponent(equipoId)}`);
+        if (!res.ok) throw new Error("Equipo no encontrado");
+
+        equipoActivoData = await res.json();
+        renderizarPlantilla(equipoActivoData);
+    } catch (err) {
+        console.error(err);
+        mostrarToast("Error al cargar datos del equipo", "error");
+    }
+}
+
+function limpiarDashboardPlantilla() {
+    displayPresupuesto.textContent = "0 €";
+    displayValorPlantilla.textContent = "0 €";
+    displayNumJugadores.textContent = "0 jugadores";
+    displayBeneficioTotal.textContent = "0 €";
+    displayRentabilidadTotal.textContent = "0.0% rentabilidad";
+    displayPatrimonioTotal.textContent = "0 €";
+    contadorPlantilla.textContent = "0 Jugadores";
+    tituloPlantillaActual.textContent = "Plantilla Actual";
+    tablaPlantillaBody.innerHTML = `
+        <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+                No tienes equipos creados. Haz clic en "Crear Nuevo Equipo".
+            </td>
+        </tr>
+    `;
+}
+
+function renderizarPlantilla(equipo) {
+    const presupuesto = equipo.presupuesto || 0;
+    const jugadores = equipo.jugadores || [];
+
+    tituloPlantillaActual.textContent = `Plantilla: ${equipo.nombre}`;
 
     // Actualizar Presupuesto
     displayPresupuesto.textContent = formatearDinero(presupuesto);
@@ -173,7 +294,7 @@ function renderizarPlantilla() {
         tablaPlantillaBody.innerHTML = `
             <tr>
                 <td colspan="7" class="text-center text-muted py-4">
-                    Tu plantilla está vacía. Busca y añade jugadores con el formulario superior.
+                    Tu plantilla está vacía. Ficha jugadores usando el formulario superior o desde el Mercado.
                 </td>
             </tr>
         `;
@@ -206,10 +327,184 @@ function renderizarPlantilla() {
 }
 
 // ==========================================
-// ACTUALIZAR PRESUPUESTO
+// VENTANA MODAL: CREAR NUEVO EQUIPO
+// ==========================================
+function inicializarModalCrearEquipo() {
+    btnAbrirModalEquipo.addEventListener('click', abrirModalCrearEquipo);
+    modalCloseBtn.addEventListener('click', cerrarModalCrearEquipo);
+    btnCancelarModal.addEventListener('click', cerrarModalCrearEquipo);
+    modalOverlay.addEventListener('click', cerrarModalCrearEquipo);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modalCrearEquipo.classList.contains('hidden')) {
+            cerrarModalCrearEquipo();
+        }
+    });
+
+    // Mini-buscador de jugadores iniciales
+    inputBuscarJugadorInicial.addEventListener('input', (e) => {
+        clearTimeout(modalAutocompleteTimeout);
+        const query = e.target.value.trim();
+
+        if (query.length < 2) {
+            sugerenciasJugadorInicial.innerHTML = '';
+            sugerenciasJugadorInicial.classList.add('hidden');
+            return;
+        }
+
+        modalAutocompleteTimeout = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/buscar?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                mostrarSugerenciasIniciales(data.resultados || []);
+            } catch (err) {
+                console.error(err);
+            }
+        }, 200);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#modal-crear-equipo .autocomplete-wrapper')) {
+            sugerenciasJugadorInicial.classList.add('hidden');
+        }
+    });
+
+    // Envío del formulario de creación
+    formCrearEquipo.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const nombre = inputNuevoEquipoNombre.value.trim();
+        const presupuesto = parseFloat(inputNuevoEquipoPresupuesto.value);
+
+        if (!nombre || isNaN(presupuesto)) {
+            mostrarToast("Completa los datos del equipo", "error");
+            return;
+        }
+
+        try {
+            const payload = {
+                nombre: nombre,
+                presupuesto: presupuesto,
+                jugadores: jugadoresInicialesTemp
+            };
+
+            const res = await fetch('/api/equipos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                mostrarToast(`¡Equipo "${nombre}" creado con éxito!`);
+                cerrarModalCrearEquipo();
+                cargarListaEquipos(data.equipo.id);
+            } else {
+                mostrarToast("No se pudo crear el equipo", "error");
+            }
+        } catch (err) {
+            console.error(err);
+            mostrarToast("Error en la solicitud", "error");
+        }
+    });
+}
+
+function abrirModalCrearEquipo() {
+    formCrearEquipo.reset();
+    inputNuevoEquipoPresupuesto.value = "20000000";
+    jugadoresInicialesTemp = [];
+    renderizarChipsIniciales();
+    sugerenciasJugadorInicial.innerHTML = '';
+    sugerenciasJugadorInicial.classList.add('hidden');
+    modalCrearEquipo.classList.remove('hidden');
+    inputNuevoEquipoNombre.focus();
+}
+
+function cerrarModalCrearEquipo() {
+    modalCrearEquipo.classList.add('hidden');
+}
+
+function mostrarSugerenciasIniciales(jugadores) {
+    sugerenciasJugadorInicial.innerHTML = '';
+
+    if (jugadores.length === 0) {
+        sugerenciasJugadorInicial.innerHTML = '<div class="suggestion-item text-muted">Sin coincidencias</div>';
+        sugerenciasJugadorInicial.classList.remove('hidden');
+        return;
+    }
+
+    jugadores.forEach(j => {
+        const nombre = j.nickname || j.name;
+        const equipo = j.teamName || 'Sin Equipo';
+        const precio = j.marketValue || 0;
+        const id = String(j.id || nombre);
+
+        const yaAgregado = jugadoresInicialesTemp.some(item => item.id === id);
+
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.innerHTML = `
+            <div>
+                <div class="suggestion-name">${nombre} ${yaAgregado ? '<span style="font-size:0.75rem; color:var(--primary);">(Añadido)</span>' : ''}</div>
+                <div class="suggestion-team">${equipo}</div>
+            </div>
+            <div class="suggestion-price">${formatearDinero(precio)}</div>
+        `;
+
+        if (!yaAgregado) {
+            item.addEventListener('click', () => {
+                // Al ser jugador inicial dado por el juego, el precio de compra es 0 (o su valor de mercado)
+                jugadoresInicialesTemp.push({
+                    id: id,
+                    nombre: nombre,
+                    precio_compra: 0.0 // Jugador por defecto del juego
+                });
+
+                renderizarChipsIniciales();
+                inputBuscarJugadorInicial.value = '';
+                sugerenciasJugadorInicial.classList.add('hidden');
+                inputBuscarJugadorInicial.focus();
+            });
+        }
+
+        sugerenciasJugadorInicial.appendChild(item);
+    });
+
+    sugerenciasJugadorInicial.classList.remove('hidden');
+}
+
+function renderizarChipsIniciales() {
+    listaJugadoresIniciales.innerHTML = '';
+    contadorIniciales.textContent = `${jugadoresInicialesTemp.length} seleccionados`;
+
+    if (jugadoresInicialesTemp.length === 0) {
+        listaJugadoresIniciales.innerHTML = '<div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba.</div>';
+        return;
+    }
+
+    jugadoresInicialesTemp.forEach((j, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'player-chip';
+        chip.innerHTML = `
+            <span class="chip-name">${j.nombre}</span>
+            <span class="chip-price">(Inicial 0 €)</span>
+            <button type="button" class="chip-remove" onclick="removerJugadorInicial(${index})" title="Eliminar">&times;</button>
+        `;
+        listaJugadoresIniciales.appendChild(chip);
+    });
+}
+
+function removerJugadorInicial(index) {
+    jugadoresInicialesTemp.splice(index, 1);
+    renderizarChipsIniciales();
+}
+
+// ==========================================
+// ACTUALIZAR PRESUPUESTO DEL EQUIPO ACTIVO
 // ==========================================
 function inicializarPresupuesto() {
     btnEditarPresupuesto.addEventListener('click', () => {
+        if (!equipoActivoId) return;
         displayPresupuesto.classList.add('hidden');
         btnEditarPresupuesto.classList.add('hidden');
         formPresupuesto.classList.remove('hidden');
@@ -223,6 +518,7 @@ function inicializarPresupuesto() {
     });
 
     btnGuardarPresupuesto.addEventListener('click', async () => {
+        if (!equipoActivoId) return;
         const nuevoPresupuesto = parseFloat(inputPresupuesto.value);
         if (isNaN(nuevoPresupuesto)) {
             mostrarToast("Introduce un presupuesto válido", "error");
@@ -230,19 +526,18 @@ function inicializarPresupuesto() {
         }
 
         try {
-            const res = await fetch('/api/equipo/presupuesto', {
+            const res = await fetch(`/api/equipos/${encodeURIComponent(equipoActivoId)}/presupuesto`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ presupuesto: nuevoPresupuesto })
             });
 
             if (res.ok) {
-                equipoData.presupuesto = nuevoPresupuesto;
                 formPresupuesto.classList.add('hidden');
                 displayPresupuesto.classList.remove('hidden');
                 btnEditarPresupuesto.classList.remove('hidden');
-                renderizarPlantilla();
-                mostrarToast("Presupuesto actualizado con éxito");
+                mostrarToast("Presupuesto actualizado");
+                cargarDatosEquipo(equipoActivoId);
             }
         } catch (err) {
             console.error(err);
@@ -252,7 +547,7 @@ function inicializarPresupuesto() {
 }
 
 // ==========================================
-// FORMULARIO FICHAR (AUTOCOMPLETE & SUBMIT)
+// FICHAR JUGADOR EN EL EQUIPO ACTIVO
 // ==========================================
 function inicializarFormFichar() {
     inputFicharNombre.addEventListener('input', (e) => {
@@ -276,15 +571,19 @@ function inicializarFormFichar() {
         }, 250);
     });
 
-    // Cerrar sugerencias al hacer clic fuera
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.autocomplete-wrapper')) {
+        if (!e.target.closest('.add-player-card .autocomplete-wrapper')) {
             dropdownSugerencias.classList.add('hidden');
         }
     });
 
     formFichar.addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        if (!equipoActivoId) {
+            mostrarToast("Selecciona o crea un equipo primero", "error");
+            return;
+        }
 
         const nombre = inputFicharNombre.value.trim();
         const id = inputFicharId.value.trim() || nombre.toLowerCase().replace(/\s+/g, '-');
@@ -296,7 +595,7 @@ function inicializarFormFichar() {
         }
 
         try {
-            const res = await fetch('/api/equipo/jugador', {
+            const res = await fetch(`/api/equipos/${encodeURIComponent(equipoActivoId)}/jugadores`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -311,7 +610,7 @@ function inicializarFormFichar() {
                 formFichar.reset();
                 inputFicharId.value = '';
                 dropdownSugerencias.classList.add('hidden');
-                cargarEquipo();
+                cargarDatosEquipo(equipoActivoId);
             } else {
                 mostrarToast("No se pudo añadir el jugador", "error");
             }
@@ -364,16 +663,17 @@ function mostrarSugerenciasFichar(jugadores) {
 // ELIMINAR / VENDER JUGADOR
 // ==========================================
 async function eliminarJugadorPlantilla(jugadorId) {
-    if (!confirm("¿Deseas eliminar este jugador de tu plantilla?")) return;
+    if (!equipoActivoId) return;
+    if (!confirm("¿Deseas vender/eliminar este jugador de la plantilla?")) return;
 
     try {
-        const res = await fetch(`/api/equipo/jugador/${encodeURIComponent(jugadorId)}`, {
+        const res = await fetch(`/api/equipos/${encodeURIComponent(equipoActivoId)}/jugadores/${encodeURIComponent(jugadorId)}`, {
             method: 'DELETE'
         });
 
         if (res.ok) {
             mostrarToast("Jugador eliminado de la plantilla");
-            cargarEquipo();
+            cargarDatosEquipo(equipoActivoId);
         } else {
             mostrarToast("Error al eliminar jugador", "error");
         }
@@ -452,7 +752,12 @@ function mostrarResultadosMercado(jugadores) {
 }
 
 function ficharDirectoDesdeMercado(id, nombre, precio) {
-    // Cambiar a pestaña plantilla y pre-rellenar formulario
+    if (!equipoActivoId && equiposList.length === 0) {
+        abrirModalCrearEquipo();
+        mostrarToast("Crea primero un equipo para fichar", "error");
+        return;
+    }
+
     const btnPlantilla = document.getElementById('tab-btn-plantilla');
     if (btnPlantilla) btnPlantilla.click();
 
@@ -461,5 +766,5 @@ function ficharDirectoDesdeMercado(id, nombre, precio) {
     inputFicharPrecio.value = precio;
     inputFicharPrecio.focus();
 
-    mostrarToast(`Listo para fichar a ${nombre}`);
+    mostrarToast(`Listo para fichar a ${nombre} en ${equipoActivoData ? equipoActivoData.nombre : 'tu equipo'}`);
 }

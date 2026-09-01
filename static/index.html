@@ -13,7 +13,7 @@
     <div class="container">
         <header>
             <h1>⚽ LALIGA Fantasy Manager</h1>
-            <p class="subtitle">Tu Excel vitaminado para dominar la liga</p>
+            <p class="subtitle">Gestiona múltiples ligas con tu Excel vitaminado</p>
             
             <!-- Sistema de Pestañas (Tabs) -->
             <nav class="tabs-nav">
@@ -34,9 +34,30 @@
             <div id="resultados" class="grid"></div>
         </section>
 
-        <!-- SECCIÓN 2: MI PLANTILLA -->
+        <!-- SECCIÓN 2: MI PLANTILLA (MULTI-EQUIPO) -->
         <section id="tab-plantilla" class="tab-content">
-            <!-- Métricas y Presupuesto -->
+            <!-- Barra de Selección de Equipos -->
+            <div class="team-selector-bar">
+                <div class="selector-wrapper">
+                    <label for="selector-equipo" class="selector-label">Equipo Activo:</label>
+                    <div class="select-container">
+                        <select id="selector-equipo" class="styled-select">
+                            <option value="" disabled selected>Cargando equipos...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="team-actions">
+                    <button id="btn-abrir-modal-equipo" class="btn btn-primary">
+                        <span>➕ Crear Nuevo Equipo</span>
+                    </button>
+                    <button id="btn-eliminar-equipo" class="btn btn-secondary btn-icon-only" title="Eliminar este equipo">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dashboard de Métricas -->
             <div class="dashboard-grid">
                 <div class="metric-card budget-card">
                     <div class="metric-header">
@@ -46,7 +67,7 @@
                     <div class="metric-body">
                         <div id="display-presupuesto" class="metric-value text-green">0 M €</div>
                         <div id="form-presupuesto" class="budget-edit-form hidden">
-                            <input type="number" id="input-presupuesto" step="100000" placeholder="Ej: 45000000">
+                            <input type="number" id="input-presupuesto" step="100000" placeholder="Ej: 20000000">
                             <button id="btn-guardar-presupuesto" class="btn-sm btn-primary">Guardar</button>
                             <button id="btn-cancelar-presupuesto" class="btn-sm btn-secondary">✕</button>
                         </div>
@@ -74,13 +95,13 @@
 
             <!-- Formulario Rápido para Añadir Jugador -->
             <div class="card add-player-card">
-                <h3>➕ Fichar Jugador para Mi Plantilla</h3>
+                <h3>➕ Fichar Jugador para esta Plantilla</h3>
                 <form id="form-fichar" class="add-player-form" autocomplete="off">
                     <input type="hidden" id="fichar-id">
                     
                     <div class="form-group autocomplete-wrapper">
                         <label for="fichar-nombre">Jugador</label>
-                        <input type="text" id="fichar-nombre" placeholder="Escribe para buscar..." required>
+                        <input type="text" id="fichar-nombre" placeholder="Escribe para buscar en el mercado..." required>
                         <div id="fichar-sugerencias" class="suggestions-dropdown hidden"></div>
                     </div>
 
@@ -98,7 +119,7 @@
             <!-- Tabla de Plantilla -->
             <div class="table-container">
                 <div class="table-header-bar">
-                    <h3>Plantilla Actual</h3>
+                    <h3 id="titulo-plantilla-actual">Plantilla Actual</h3>
                     <span id="contador-plantilla" class="badge">0 Jugadores</span>
                 </div>
                 <div class="table-responsive">
@@ -116,13 +137,67 @@
                         </thead>
                         <tbody id="tabla-plantilla-body">
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No tienes jugadores en tu plantilla aún. Añade uno arriba.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No hay equipo seleccionado o tu plantilla está vacía.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </section>
+    </div>
+
+    <!-- ==========================================
+         VENTANA MODAL: CREAR NUEVO EQUIPO
+         ========================================== -->
+    <div id="modal-crear-equipo" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <button id="modal-close-btn" class="close-btn" title="Cerrar modal">&times;</button>
+            
+            <div class="modal-header">
+                <h2>🏆 Crear Nuevo Equipo</h2>
+                <p>Configura tu liga con presupuesto y tus jugadores iniciales por defecto.</p>
+            </div>
+
+            <form id="form-crear-equipo" class="modal-form" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label for="nuevo-equipo-nombre">Nombre del Equipo / Liga</label>
+                        <input type="text" id="nuevo-equipo-nombre" placeholder="Ej: Liga de Amigos, Fantasy Champions..." required>
+                    </div>
+
+                    <div class="form-group flex-1">
+                        <label for="nuevo-equipo-presupuesto">Presupuesto Inicial (€)</label>
+                        <input type="number" id="nuevo-equipo-presupuesto" value="20000000" step="500000" placeholder="20000000" required>
+                    </div>
+                </div>
+
+                <!-- Mini-Buscador de Jugadores Iniciales -->
+                <div class="initial-players-section">
+                    <div class="section-title-row">
+                        <label>Jugadores Iniciales (que te dio el juego):</label>
+                        <span id="contador-iniciales" class="badge">0 seleccionados</span>
+                    </div>
+
+                    <div class="form-group autocomplete-wrapper">
+                        <input type="text" id="buscar-jugador-inicial" placeholder="Buscar jugador para añadir a tu equipo inicial...">
+                        <div id="sugerencias-jugador-inicial" class="suggestions-dropdown hidden"></div>
+                    </div>
+
+                    <!-- Lista visual de jugadores iniciales seleccionados (Chips) -->
+                    <div id="lista-jugadores-iniciales" class="chips-container">
+                        <div class="chips-placeholder text-muted">Aún no has añadido jugadores iniciales. Búscalos arriba.</div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="btn-cancelar-modal" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-guardar-nuevo-equipo" class="btn btn-primary">
+                        <span>💾 Guardar Equipo</span>
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Notificaciones Toast -->
