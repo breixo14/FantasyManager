@@ -222,6 +222,12 @@ class CrearEquipoRequest(BaseModel):
     presupuesto: float = 20000000.0
     jugadores: list[JugadorEntrada] = Field(default_factory=list)
 
+class ImportarEquipoRequest(BaseModel):
+    token: str
+    league_id: str
+    manager_id: str
+    nombre: str | None = None
+
 class PresupuestoRequest(BaseModel):
     presupuesto: float
 
@@ -267,7 +273,7 @@ def listar_equipos():
 
 @app.post("/api/equipos")
 def crear_equipo(body: CrearEquipoRequest):
-    """Crea un nuevo equipo con nombre, presupuesto y jugadores iniciales."""
+    """Crea un nuevo equipo manual con nombre, presupuesto y jugadores iniciales."""
     datos = cargar_equipos()
     nuevo_id = uuid.uuid4().hex[:8]
 
@@ -289,6 +295,141 @@ def crear_equipo(body: CrearEquipoRequest):
     datos.setdefault("equipos", []).append(nuevo_equipo)
     guardar_equipos(datos)
     return {"mensaje": "Equipo creado con éxito", "equipo": nuevo_equipo}
+
+@app.post("/api/equipos/importar")
+def importar_equipo_laliga(body: ImportarEquipoRequest):
+    """Importa automáticamente presupuesto y jugadores desde la API privada de LaLiga Fantasy."""
+    raw_token = body.token.strip()
+    if raw_token.lower().startswith("bearer "):
+        raw_token = raw_token[7:].strip()
+
+    if not raw_token or not body.league_id.strip() or not body.manager_id.strip():
+        raise HTTPException(status_code=400, detail="Token, League ID y Manager ID son obligatorios.")
+
+    auth_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "x-lang": "es",
+        "Authorization": f"Bearer {raw_token}"
+    }
+
+    league_id = body.league_id.strip()
+    manager_id = body.manager_id.strip()
+
+    # Intentar endpoint oficial de equipo de usuario
+    endpoints_a_probar = [
+        f"{BASE_URL}/v1/competition/1/league/{league_id}/user/{manager_id}",
+        f"{BASE_URL}/v1/league/{league_id}/user/{manager_id}",
+        f"{BASE_URL}/v1/competition/2/league/{league_id}/user/{manager_id}"
+    ]
+
+    respuesta_api = None
+    ultimo_error = None
+
+    for url in endpoints_a_probar:
+        try:
+            resp = requests.get(url, headers=auth_headers, timeout=12)
+            if resp.status_code == 200:
+                respuesta_api = resp.json()
+                break
+            else:
+                ultimo_error = f"Código {resp.status_code}: {resp.text[:100]}"
+        except Exception as e:
+            ultimo_error = str(e)
+
+    if not respuesta_api:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pudo sincronizar con LaLiga Fantasy. Verifica tu Token y credenciales ({ultimo_error})."
+        )
+
+    # Extraer Presupuesto
+    presupuesto_raw = (
+        respuesta_api.get("money") or 
+        respuesta_api.get("budget") or 
+        respuesta_api.get("balance") or 
+        respuesta_api.get("team", {}).get("money") or 
+        respuesta_api.get("team", {}).get("balance") or 
+        respuesta_api.get("user", {}).get("money") or 
+        20000000.0
+    )
+    try:
+        presupuesto = float(presupuesto_raw)
+    except (ValueError, TypeError):
+        presupuesto = 20000000.0
+
+    # Extraer Nombre del Equipo
+    nombre_equipo = body.nombre.strip() if body.nombre and body.nombre.strip() else None
+    if not nombre_equipo:
+        nombre_equipo = (
+            respuesta_api.get("team", {}).get("name") or 
+            respuesta_api.get("name") or 
+            respuesta_api.get("league", {}).get("name") or 
+            respuesta_api.get("userName") or 
+            f"Liga Oficial ({league_id[:6]})"
+        )
+
+    # Extraer Lista de Jugadores
+    raw_players = (
+        respuesta_api.get("players") or 
+        respuesta_api.get("team", {}).get("players") or 
+        respuesta_api.get("squad") or 
+        []
+    )
+
+    mapa_id_cache = {str(j.get('id')): j for j in jugadores_cache}
+
+    jugadores_procesados = []
+    for p in raw_players:
+        p_obj = p.get("player") if isinstance(p.get("player"), dict) else p
+        
+        p_id = str(p_obj.get("id") or p.get("id") or p.get("playerId") or p.get("masterPlayerId") or "")
+        p_nombre = p_obj.get("nickname") or p_obj.get("name") or p.get("nickname") or p.get("name") or ""
+        
+        # Recuperar nombre de la caché si falta
+        if not p_nombre and p_id in mapa_id_cache:
+            cached_player = mapa_id_cache[p_id]
+            p_nombre = cached_player.get("nickname") or cached_player.get("name") or f"Jugador {p_id}"
+
+        # Precio de compra original o valor de mercado
+        precio_compra_raw = (
+            p.get("buyValue") or 
+            p.get("buyPrice") or 
+            p.get("purchasePrice") or 
+            p.get("price") or 
+            p_obj.get("marketValue") or 
+            0.0
+        )
+        try:
+            precio_compra = float(precio_compra_raw)
+        except (ValueError, TypeError):
+            precio_compra = 0.0
+
+        if p_id or p_nombre:
+            jugadores_procesados.append({
+                "id": p_id or p_nombre.lower().replace(" ", "-"),
+                "nombre": p_nombre or f"Jugador {p_id}",
+                "precio_compra": precio_compra
+            })
+
+    # Guardar en equipos.json
+    datos = cargar_equipos()
+    nuevo_id = uuid.uuid4().hex[:8]
+
+    nuevo_equipo = {
+        "id": nuevo_id,
+        "nombre": nombre_equipo,
+        "presupuesto": presupuesto,
+        "jugadores": jugadores_procesados
+    }
+
+    datos.setdefault("equipos", []).append(nuevo_equipo)
+    guardar_equipos(datos)
+
+    return {
+        "mensaje": f"¡Plantilla sincronizada con éxito! ({len(jugadores_procesados)} jugadores importados)",
+        "equipo": nuevo_equipo
+    }
 
 @app.get("/api/equipos/{equipo_id}")
 def obtener_equipo(equipo_id: str):

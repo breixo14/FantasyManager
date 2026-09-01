@@ -10,11 +10,17 @@ const btnAbrirModalEquipo = document.getElementById('btn-abrir-modal-equipo');
 const btnEliminarEquipo = document.getElementById('btn-eliminar-equipo');
 const tituloPlantillaActual = document.getElementById('titulo-plantilla-actual');
 
-// Modal Crear Equipo
+// Modal Crear / Importar Equipo
 const modalCrearEquipo = document.getElementById('modal-crear-equipo');
 const modalOverlay = modalCrearEquipo.querySelector('.modal-overlay');
 const modalCloseBtn = document.getElementById('modal-close-btn');
-const btnCancelarModal = document.getElementById('btn-cancelar-modal');
+const btnsModalCancel = document.querySelectorAll('.btn-modal-cancel');
+
+// Sub-pestañas Modal
+const subtabBtns = document.querySelectorAll('.subtab-btn');
+const subtabPaneles = document.querySelectorAll('.subtab-panel');
+
+// Formulario Manual
 const formCrearEquipo = document.getElementById('form-crear-equipo');
 const inputNuevoEquipoNombre = document.getElementById('nuevo-equipo-nombre');
 const inputNuevoEquipoPresupuesto = document.getElementById('nuevo-equipo-presupuesto');
@@ -22,6 +28,14 @@ const inputBuscarJugadorInicial = document.getElementById('buscar-jugador-inicia
 const sugerenciasJugadorInicial = document.getElementById('sugerencias-jugador-inicial');
 const listaJugadoresIniciales = document.getElementById('lista-jugadores-iniciales');
 const contadorIniciales = document.getElementById('contador-iniciales');
+
+// Formulario Importar LaLiga
+const formImportarEquipo = document.getElementById('form-importar-equipo');
+const inputImportToken = document.getElementById('import-token');
+const inputImportLeagueId = document.getElementById('import-league-id');
+const inputImportManagerId = document.getElementById('import-manager-id');
+const inputImportNombre = document.getElementById('import-nombre');
+const btnSincronizarEquipo = document.getElementById('btn-sincronizar-equipo');
 
 // Elementos de Mercado
 const buscadorMercado = document.getElementById('buscador');
@@ -78,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// SISTEMA DE PESTAÑAS (TABS)
+// SISTEMA DE PESTAÑAS (TABS PRINCIPALES)
 // ==========================================
 function inicializarTabs() {
     tabBtns.forEach(btn => {
@@ -139,7 +153,7 @@ function mostrarToast(mensaje, tipo = 'info') {
     
     setTimeout(() => {
         toast.classList.add('hidden');
-    }, 3000);
+    }, 3500);
 }
 
 // ==========================================
@@ -247,7 +261,7 @@ function limpiarDashboardPlantilla() {
     tablaPlantillaBody.innerHTML = `
         <tr>
             <td colspan="7" class="text-center text-muted py-4">
-                No tienes equipos creados. Haz clic en "Crear Nuevo Equipo".
+                No tienes equipos creados. Haz clic en "Crear / Importar Equipo".
             </td>
         </tr>
     `;
@@ -327,13 +341,16 @@ function renderizarPlantilla(equipo) {
 }
 
 // ==========================================
-// VENTANA MODAL: CREAR NUEVO EQUIPO
+// VENTANA MODAL: CREAR / IMPORTAR EQUIPO
 // ==========================================
 function inicializarModalCrearEquipo() {
     btnAbrirModalEquipo.addEventListener('click', abrirModalCrearEquipo);
     modalCloseBtn.addEventListener('click', cerrarModalCrearEquipo);
-    btnCancelarModal.addEventListener('click', cerrarModalCrearEquipo);
     modalOverlay.addEventListener('click', cerrarModalCrearEquipo);
+
+    btnsModalCancel.forEach(btn => {
+        btn.addEventListener('click', cerrarModalCrearEquipo);
+    });
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !modalCrearEquipo.classList.contains('hidden')) {
@@ -341,7 +358,22 @@ function inicializarModalCrearEquipo() {
         }
     });
 
-    // Mini-buscador de jugadores iniciales
+    // Sub-pestañas Modal
+    subtabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetSubtab = btn.getAttribute('data-subtab');
+            subtabBtns.forEach(b => b.classList.remove('active'));
+            subtabPaneles.forEach(p => p.classList.remove('active'));
+
+            btn.classList.add('active');
+            const targetPanel = document.getElementById(`subtab-panel-${targetSubtab}`);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+        });
+    });
+
+    // Mini-buscador de jugadores iniciales (Manual)
     inputBuscarJugadorInicial.addEventListener('input', (e) => {
         clearTimeout(modalAutocompleteTimeout);
         const query = e.target.value.trim();
@@ -369,7 +401,7 @@ function inicializarModalCrearEquipo() {
         }
     });
 
-    // Envío del formulario de creación
+    // Formulario 1: Envío Creación Manual
     formCrearEquipo.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -407,15 +439,73 @@ function inicializarModalCrearEquipo() {
             mostrarToast("Error en la solicitud", "error");
         }
     });
+
+    // Formulario 2: Envío Importación LaLiga Fantasy
+    formImportarEquipo.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const token = inputImportToken.value.trim();
+        const leagueId = inputImportLeagueId.value.trim();
+        const managerId = inputImportManagerId.value.trim();
+        const nombre = inputImportNombre.value.trim() || null;
+
+        if (!token || !leagueId || !managerId) {
+            mostrarToast("Debes introducir Token, League ID y Manager ID", "error");
+            return;
+        }
+
+        // Estado de carga UI
+        const btnText = btnSincronizarEquipo.querySelector('.btn-text');
+        const spinner = btnSincronizarEquipo.querySelector('.spinner');
+        btnSincronizarEquipo.disabled = true;
+        btnText.textContent = "Sincronizando plantilla...";
+        spinner.classList.remove('hidden');
+
+        try {
+            const res = await fetch('/api/equipos/importar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: token,
+                    league_id: leagueId,
+                    manager_id: managerId,
+                    nombre: nombre
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                mostrarToast(data.mensaje || "¡Plantilla sincronizada con éxito!");
+                cerrarModalCrearEquipo();
+                formImportarEquipo.reset();
+                cargarListaEquipos(data.equipo.id);
+            } else {
+                mostrarToast(data.detail || "Error al sincronizar con LaLiga Fantasy", "error");
+            }
+        } catch (err) {
+            console.error(err);
+            mostrarToast("Error de conexión al servidor", "error");
+        } finally {
+            btnSincronizarEquipo.disabled = false;
+            btnText.textContent = "🚀 Sincronizar y Crear Equipo";
+            spinner.classList.add('hidden');
+        }
+    });
 }
 
 function abrirModalCrearEquipo() {
     formCrearEquipo.reset();
+    formImportarEquipo.reset();
     inputNuevoEquipoPresupuesto.value = "20000000";
     jugadoresInicialesTemp = [];
     renderizarChipsIniciales();
     sugerenciasJugadorInicial.innerHTML = '';
     sugerenciasJugadorInicial.classList.add('hidden');
+
+    // Resetear a la primera sub-pestaña
+    document.getElementById('btn-subtab-manual').click();
+
     modalCrearEquipo.classList.remove('hidden');
     inputNuevoEquipoNombre.focus();
 }
@@ -453,11 +543,10 @@ function mostrarSugerenciasIniciales(jugadores) {
 
         if (!yaAgregado) {
             item.addEventListener('click', () => {
-                // Al ser jugador inicial dado por el juego, el precio de compra es 0 (o su valor de mercado)
                 jugadoresInicialesTemp.push({
                     id: id,
                     nombre: nombre,
-                    precio_compra: 0.0 // Jugador por defecto del juego
+                    precio_compra: 0.0
                 });
 
                 renderizarChipsIniciales();
@@ -754,7 +843,7 @@ function mostrarResultadosMercado(jugadores) {
 function ficharDirectoDesdeMercado(id, nombre, precio) {
     if (!equipoActivoId && equiposList.length === 0) {
         abrirModalCrearEquipo();
-        mostrarToast("Crea primero un equipo para fichar", "error");
+        mostrarToast("Crea o importa primero un equipo para fichar", "error");
         return;
     }
 
